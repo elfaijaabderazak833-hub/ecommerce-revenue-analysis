@@ -1,0 +1,77 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import date
+df=pd.read_csv('market.csv')
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+print(df.info())
+print(df.describe(include='all').T)
+print(df.nunique())
+df.columns=df.columns.str.strip().str.lower().str.replace(" ", "_")
+df['order_date']=pd.to_datetime(df['order_date'], errors='coerce')
+df['payment_method']=df['payment_method'].astype('category')
+df['status']=df['status'].astype('category')
+
+df['quantity']=pd.to_numeric(df['quantity'], errors='coerce').astype('Int64')
+df['price']=pd.to_numeric(df['price'], errors='coerce')
+df['price']=df.groupby('product')['price'].transform(lambda x:x.fillna(x.median()))
+#print(df['price'])
+df['price']=df['price'].fillna(df['price'].median())
+print(df['price'])
+df=df.dropna(subset=['order_date', 'quantity'])
+dup_order_id=df[df.duplicated(subset=['order_id'], keep=False)]
+print(dup_order_id)
+df['total']=(df['price']*df['quantity']).round(2)
+print(df)
+df['month']=df['order_date'].dt.to_period('M')
+df['day']=df['order_date'].dt.day
+df['month_str']=df['month'].astype(str)
+#df['to_time']=df['order_date'].dt.time
+cate_revenue=df.groupby('category').agg(revenue=('total', 'sum'), 
+                                        items=('quantity', 'sum')).sort_values('revenue', ascending=False).head(5).reset_index()
+print(cate_revenue)
+df_pro=df.groupby('product').agg(rev_product=('total', 'sum'),
+                                 item_pro=('quantity', 'sum')).sort_values('rev_product', ascending=False).head(5).reset_index()
+print(df_pro)
+monthly_sale=df.groupby('month_str').agg(revenue=('total', 'sum'),
+                                     items=('quantity', 'sum')).sort_values('revenue',ascending=False).head(10).reset_index()
+daily_sales=df.groupby('order_date').agg(revenue=("total", 'sum'),
+                                  items=('quantity', 'sum')).sort_values('order_date', ascending=False).head(15).reset_index()
+print(f"monthly sales \n {monthly_sale}\n")
+print(daily_sales)
+pm=df['payment_method'].value_counts().reset_index()
+print(pm)
+stat=df['status'].value_counts(normalize=False).reset_index()
+print(stat)
+plt.figure(figsize=(8,5))
+bars=plt.bar(cate_revenue['category'],cate_revenue['revenue'], color=['#2E86AB', '#A23B72', '#F18F01', '#C73E1D', '#4F772D'], alpha=0.8, edgecolor='grey')
+for bar in bars:
+    height=bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2., height,
+             f'{int(height):,}', ha='center', va='bottom', fontsize=10, weight='bold')
+plt.title("Revenue By  category")
+plt.ylabel('Revenue')
+plt.xlabel('category')
+plt.xticks(rotation=0)
+plt.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.savefig('top_category.png')
+plt.show()
+plt.figure(figsize=(8,4))
+plt.plot(monthly_sale['month_str'], monthly_sale['revenue'], marker='o')
+plt.xticks(monthly_sale['month_str'],rotation=45, ha='right')
+plt.title("Monthly Revenue")
+plt.xlabel("monthly ")
+plt.ylabel("Revenue")
+plt.tight_layout()
+plt.savefig('monthly_rev.png')
+plt.show()
+plt.figure(figsize=(10,5))
+plt.plot(daily_sales['order_date'], daily_sales['revenue'], marker="o")
+plt.xticks(daily_sales['order_date'], rotation=45, ha='right')
+plt.gcf().autofmt_xdate()
+plt.tight_layout()
+plt.savefig('daily_sales.png')
+plt.show()
